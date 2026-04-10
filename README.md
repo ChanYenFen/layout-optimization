@@ -1,4 +1,4 @@
-# Layout Optimization
+# Layout Optimization (WIP)
 
 This project explores algorithm-driven layout optimization and geometry processing under manufacturing constraints.
 
