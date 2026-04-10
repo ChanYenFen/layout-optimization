@@ -46,8 +46,8 @@ layout-optimization/
 │   ├── test_cases.py
 │
 ├── examples/
-│   ├── simple_case.json
-│   ├── narrow_region.json
+│   ├── simple_case.png
+│   ├── narrow_region.png
 │
 ├── README.md
 ├── requirements.txt
