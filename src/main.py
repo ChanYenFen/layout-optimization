@@ -7,11 +7,10 @@ from geometry.correction import (
     smooth_core_displacement,
     refit_modified_spans,
     expand_neighborhood,
-    apply_decayed_pull
+    apply_decayed_pull,
 )
 from visualization import visualize_adjusted_points
 import numpy as np
-
 
 def main():
     img = load_binary_image("examples/simple_case.png")
