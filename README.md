@@ -1,26 +1,65 @@
 # Layout Optimization (WIP)
 
-This project explores algorithm-driven layout optimization and geometry processing under manufacturing constraints.
+A Python side project focused on **algorithmic geometry processing** for manufacturing-oriented contour correction.
 
-It focuses on enforcing minimum feature width, improving geometric smoothness, and detecting structural irregularities through a combination of computational geometry and constraint-aware optimization.
+This project explores how to detect and correct problematic local regions in 2D contours extracted from binary input, while preserving overall boundary continuity.
 
-## Features
+## Problem
 
-- Constraint-aware geometry correction (minimum width enforcement)
-- Laplacian smoothing for boundary regularization
-- Geometry quality metrics (width, curvature, violations)
-- Rasterization-based analysis for defect detection
-- Synthetic test cases for validation and benchmarking
+Contours extracted from raster images can contain:
 
-## Motivation
+* narrow local regions
+* jagged boundary artifacts
+* fragmented correction spans
+* shape distortion after naive global smoothing
 
-In semiconductor and advanced manufacturing, layout patterns must satisfy strict geometric and process constraints such as minimum feature size, smooth transitions, and structural integrity.
+A simple global smoother can improve continuity, but it does not distinguish between core problem regions and neighboring points that should only be influenced indirectly.
 
-This project explores how algorithmic approaches can be used to analyze, regularize, and optimize geometric layouts under such constraints. It serves as a simplified prototype of constraint-driven layout optimization workflows commonly found in EDA and manufacturing systems.
+## Objective
+
+Build a contour-correction pipeline that can:
+
+* detect local violations
+* apply correction selectively
+* propagate displacement with controlled decay
+* smooth local correction magnitude
+* refit corrected spans
+
+## Current Pipeline
+
+```
+binary input
+    -> contour extraction
+    -> pull_points
+    -> interpolate_modified_spans
+    -> detect_core_spans
+    -> smooth_pull_magnitude_field
+    -> apply_decayed_pull
+    -> refit_modified_spans
+```
+
+## Why It Fits Algorithm Roles
+
+This project demonstrates:
+
+* geometric data processing
+* heuristic design
+* local neighborhood propagation
+* constrained smoothing
+* iterative refinement
+* debugging and visualization of intermediate states
+
+It is especially relevant to roles involving computational geometry, computer vision, manufacturing optimization, and applied algorithm engineering.
+
+## Status
+
+This repository is still experimental. Current work is focused on stabilizing the correction pipeline, comparing against simpler baselines, and improving evaluation and code structure.
 
 ## Project Structure
 
-```
+Current repository layout:
+
+```text
 layout-optimization/
 │
 ├── src/
@@ -52,5 +91,3 @@ layout-optimization/
 ├── README.md
 ├── requirements.txt
 ```
-
-
