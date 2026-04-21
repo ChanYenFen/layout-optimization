@@ -1,4 +1,7 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:system",
-    "python-envs.defaultPackageManager": "ms-python.python:pip"
+    "python-envs.defaultPackageManager": "ms-python.python:pip",
+    "python.defaultInterpreterPath": "/Users/chanyenfen/cyf/bin/python",
+    "python.analysis.languageServerMode": "default",
+    "python.analysis.useLibraryCodeForTypes": true
 }
