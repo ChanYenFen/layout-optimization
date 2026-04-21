@@ -1,4 +1,4 @@
-from cv.rasterize import load_binary_image, extract_contour
+from cv.rasterize import load_binary_image, extract_contours
 from geometry.correction import (
     pull_points,
     interpolate_modified_spans,
@@ -9,22 +9,22 @@ from geometry.correction import (
     expand_neighborhood,
     apply_decayed_pull,
 )
-from visualization import visualize_adjusted_points
+from visualization import visualize_multi_contours
 import numpy as np
 
-def main():
-    img = load_binary_image("examples/simple_case.png")
-    pts = extract_contour(img)
 
-    # 1. core pull
-    adjusted_pts, indices = pull_points(
+def run_single_contour_pipeline(pts, img):
+    adjusted_pts, indices, debug_vectors = pull_points(
         pts,
         img,
-        min_distance=15,
+        min_distance=35,
         increment=5,
+        verbose=True,
     )
 
-    # 2. fill small gaps inside modified regions
+    if not indices:
+        return pts.copy(), [], [], [], debug_vectors
+
     adjusted_pts, indices = interpolate_modified_spans(
         pts,
         adjusted_pts,
@@ -32,10 +32,13 @@ def main():
         max_gap=10,
     )
 
-    # 3. detect core spans
     core_spans = detect_core_spans(indices, len(pts), max_gap=2)
 
-    # 4. smooth pull magnitude first
+    if not core_spans:
+        moved_mask = np.linalg.norm(adjusted_pts - pts, axis=1) > 1e-8
+        moved_indices = np.where(moved_mask)[0].tolist()
+        return adjusted_pts, indices, [], moved_indices, debug_vectors
+
     adjusted_pts = smooth_pull_magnitude_field(
         pts,
         adjusted_pts,
@@ -43,14 +46,12 @@ def main():
         passes=4,
     )
 
-    # 5. expand neighborhood
     span_infos = expand_neighborhood(
         core_spans,
         len(pts),
         radius=10,
     )
 
-    # 6. apply decayed pull
     adjusted_pts = apply_decayed_pull(
         pts,
         adjusted_pts,
@@ -58,7 +59,6 @@ def main():
         radius=10,
     )
 
-    # 7. optional weak vector smoothing
     adjusted_pts = smooth_core_displacement(
         pts,
         adjusted_pts,
@@ -66,7 +66,6 @@ def main():
         passes=1,
     )
 
-    # 8. local refit
     adjusted_pts = refit_modified_spans(
         adjusted_pts,
         core_spans,
@@ -78,17 +77,58 @@ def main():
     moved_mask = np.linalg.norm(adjusted_pts - pts, axis=1) > 1e-8
     moved_indices = np.where(moved_mask)[0].tolist()
 
-    visualize_adjusted_points(
-        pts,
-        adjusted_pts,
-        moved_indices,
-        title="Original vs Corrected"
+    return adjusted_pts, indices, core_spans, moved_indices, debug_vectors
+
+
+def main(draw_vectors=False):
+    img = load_binary_image("examples/simple_case_4.png")
+    contours = extract_contours(img, debug=False)
+
+    print(f"Loaded {len(contours)} contours")
+
+    results = []
+
+    for k, contour_info in enumerate(contours):
+        pts = contour_info["points"]
+        is_hole = contour_info.get("is_hole", False)
+        depth = contour_info.get("depth", 0)
+
+        adjusted_pts, indices, core_spans, moved_indices, debug_vectors = (
+            run_single_contour_pipeline(pts, img)
+        )
+
+        print(f"\nContour {k}")
+        print(f"is_hole: {is_hole}")
+        print(f"depth: {depth}")
+        print(f"Contour points: {len(pts)}")
+        print(f"Core pulled points: {len(indices)}")
+        print(f"Core spans: {len(core_spans)}")
+        print(f"All moved points: {len(moved_indices)}")
+        print(f"Debug vectors: {len(debug_vectors)}")
+
+        results.append(
+            {
+                "id": contour_info.get("id", k),
+                "points": pts,
+                "adjusted_points": adjusted_pts,
+                "moved_indices": moved_indices,
+                "core_indices": indices,
+                "core_spans": core_spans,
+                "debug_vectors": debug_vectors,
+                "is_hole": is_hole,
+                "depth": depth,
+                "parent": contour_info.get("parent", -1),
+                "area": contour_info.get("area", 0.0),
+            }
+        )
+
+    visualize_multi_contours(
+        img,
+        results,
+        title="All contours: original vs corrected",
+        draw_vectors=draw_vectors,
     )
 
-    print(f"Loaded {len(pts)} contour points")
-    print(f"Core pulled points: {len(indices)}")
-    print(f"Core spans: {len(core_spans)}")
-    print(f"All moved points: {len(moved_indices)}")
 
 if __name__ == "__main__":
-    main()
+    main(draw_vectors=True)

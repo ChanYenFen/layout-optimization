@@ -72,13 +72,43 @@ def pull_points(
     binary_img: np.ndarray,
     min_distance: float = 5,
     increment: float = 5,
-) -> tuple[np.ndarray, list[int]]:
+    verbose: bool = False,
+) -> tuple[np.ndarray, list[int], list[dict]]:
     """
     Pull boundary points outward when the opposite side of the shape
     is found too close along the inward normal direction.
+
+    Parameters
+    ----------
+    points : (N, 2) ndarray
+        Input contour points.
+    binary_img : (H, W) ndarray
+        Binary image with values 0 / 255.
+    min_distance : float
+        Minimum allowed local thickness.
+    increment : float
+        Maximum pull distance for one point.
+    verbose : bool
+        If True, print debug information.
+
+    Returns
+    -------
+    adjusted : (N, 2) ndarray
+        Adjusted contour points.
+    indices_to_adjust : list[int]
+        Indices of points that were directly pulled.
+    debug_vectors : list[dict]
+        Per-point pull debug info containing:
+        - index
+        - point
+        - inward
+        - outward
+        - disp
+        - pull_dist
     """
     adjusted = points.astype(np.float64).copy()
     indices_to_adjust: list[int] = []
+    debug_vectors: list[dict] = []
 
     h, w = binary_img.shape
     max_steps = int(np.ceil(min_distance))
@@ -86,7 +116,8 @@ def pull_points(
     for i in range(len(points)):
         inward_normal = get_inward_normal(points, i, binary_img)
 
-        print(f"[{i}] inward_normal = {inward_normal}")
+        if verbose:
+            print(f"[{i}] inward_normal = {inward_normal}")
 
         if np.linalg.norm(inward_normal) == 0:
             continue
@@ -101,6 +132,7 @@ def pull_points(
             if x < 0 or x >= w or y < 0 or y >= h:
                 break
 
+            # still in background / void: keep walking inward
             if binary_img[y, x] == 0:
                 continue
 
@@ -115,20 +147,36 @@ def pull_points(
 
                 if binary_img[py, px] == 0:
                     distance = d
-                    print(f"[{i}] distance = {distance}")
+
+                    if verbose:
+                        print(f"[{i}] distance = {distance}")
 
                     if distance < min_distance:
                         violation = max(min_distance - distance, 0.0)
                         pull_dist = min(np.sqrt(violation) * 1.2, increment)
+                        # Alternative mapping:
                         # pull_dist = min((min_distance - distance) / 2.0, increment)
+
                         adjusted[i] = p + outward_normal * pull_dist
                         indices_to_adjust.append(i)
 
-                        print(
-                            f"PULL [{i}] distance={distance}, "
-                            f"pull_dist={pull_dist}, "
-                            f"from={p} to={adjusted[i]}"
+                        debug_vectors.append(
+                            {
+                                "index": i,
+                                "point": p.copy(),
+                                "inward": inward_normal.copy(),
+                                "outward": outward_normal.copy(),
+                                "disp": (adjusted[i] - p).copy(),
+                                "pull_dist": float(pull_dist),
+                            }
                         )
+
+                        if verbose:
+                            print(
+                                f"PULL [{i}] distance={distance}, "
+                                f"pull_dist={pull_dist}, "
+                                f"from={p} to={adjusted[i]}"
+                            )
 
                     opposite_found = True
                     break
@@ -136,4 +184,4 @@ def pull_points(
             if opposite_found:
                 break
 
-    return adjusted, indices_to_adjust
+    return adjusted, indices_to_adjust, debug_vectors
