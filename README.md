@@ -1,4 +1,4 @@
-# Layout Optimization (WIP)
+# Layout Optimization
 
 A Python side project focused on **algorithmic geometry processing** for manufacturing-oriented contour correction.
 
