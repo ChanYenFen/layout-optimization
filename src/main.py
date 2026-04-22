@@ -17,7 +17,7 @@ def run_single_contour_pipeline(pts, img):
     adjusted_pts, indices, debug_vectors = pull_points(
         pts,
         img,
-        min_distance=35,
+        min_distance=50,
         increment=5,
         verbose=True,
     )
@@ -81,7 +81,7 @@ def run_single_contour_pipeline(pts, img):
 
 
 def main(draw_vectors=False):
-    img = load_binary_image("examples/simple_case_4.png")
+    img = load_binary_image("examples/simple_case_3.png")
     contours = extract_contours(img, debug=False)
 
     print(f"Loaded {len(contours)} contours")
