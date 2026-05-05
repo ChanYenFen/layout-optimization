@@ -98,7 +98,8 @@ def visualize_multi_contours(
                     p[1],
                     disp[0],
                     disp[1],
-                    head_width=2.0,
+                    head_width=0.6,
+                    color = "black",
                     length_includes_head=True,
                 )
 
@@ -111,5 +112,6 @@ def visualize_multi_contours(
         )
 
     plt.title(title)
+    plt.gca().invert_yaxis()
     plt.axis("equal")
     plt.show()

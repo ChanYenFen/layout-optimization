@@ -71,6 +71,7 @@ def pull_points(
     points: np.ndarray,
     binary_img: np.ndarray,
     min_distance: float = 5,
+    search_depth: float = 50,
     increment: float = 5,
     verbose: bool = False,
 ) -> tuple[np.ndarray, list[int], list[dict]]:
@@ -111,7 +112,8 @@ def pull_points(
     debug_vectors: list[dict] = []
 
     h, w = binary_img.shape
-    max_steps = int(np.ceil(min_distance))
+    max_steps = int(np.ceil(search_depth))#replace max_steps = int(np.ceil(min_distance))
+
 
     for i in range(len(points)):
         inward_normal = get_inward_normal(points, i, binary_img)

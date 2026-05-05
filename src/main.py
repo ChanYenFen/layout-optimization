@@ -18,6 +18,7 @@ def run_single_contour_pipeline(pts, img):
         pts,
         img,
         min_distance=50,
+        search_depth=50,
         increment=5,
         verbose=True,
     )
@@ -63,13 +64,13 @@ def run_single_contour_pipeline(pts, img):
         pts,
         adjusted_pts,
         core_spans,
-        passes=1,
+        passes=2,
     )
 
     adjusted_pts = refit_modified_spans(
         adjusted_pts,
         core_spans,
-        anchor_size=4,
+        anchor_size=8,
         passes=4,
         alpha=0.35,
     )
@@ -81,7 +82,7 @@ def run_single_contour_pipeline(pts, img):
 
 
 def main(draw_vectors=False):
-    img = load_binary_image("examples/simple_case_3.png")
+    img = load_binary_image("examples/simple_case_2.png")
     contours = extract_contours(img, debug=False)
 
     print(f"Loaded {len(contours)} contours")
@@ -128,7 +129,7 @@ def main(draw_vectors=False):
         title="All contours: original vs corrected",
         draw_vectors=draw_vectors,
     )
-
+    
 
 if __name__ == "__main__":
     main(draw_vectors=True)
