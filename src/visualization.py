@@ -15,7 +15,6 @@ def _close_ring(points):
 
     return np.vstack([points, points[0]])
 
-
 def visualize_adjusted_points(original_pts, adjusted_pts, moved_indices=None, title=None):
     """
     Debug view for a single contour.

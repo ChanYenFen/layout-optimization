@@ -158,13 +158,13 @@ def main(draw_vectors=False):
             run_iterative_contour_pipeline(
                 pts,
                 img,
-                max_iter=2,
-                min_distance=30,
+                max_iter=3,
+                min_distance=50,
                 search_depth=50,
                 increment=3,   # iterative: smaller step than main.py
-                interp_gap=10,
+                interp_gap=3,
                 core_gap=2,
-                radius=50,
+                radius=20,
                 mag_smooth_passes=4,
                 disp_smooth_passes=1,
                 refit_anchor_size=10,

@@ -155,7 +155,8 @@ def pull_points(
 
                     if distance < min_distance:
                         violation = max(min_distance - distance, 0.0)
-                        pull_dist = min(np.sqrt(violation) * 1.2, increment)
+                        # pull_dist = min(np.sqrt(violation) * 1.2, increment)
+                        pull_dist = min(violation, increment)
                         # Alternative mapping:
                         # pull_dist = min((min_distance - distance) / 2.0, increment)
 
