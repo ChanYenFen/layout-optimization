@@ -1,20 +1,3 @@
-"""
-geometry/correction.py
-
-Constraint-aware contour correction utilities.
-
-This version keeps the original `pull_points` entry point and adds
-`pull_points_with_falloff`, which propagates pull displacement to nearby
-points with linear falloff.
-
-Assumptions
------------
-- `points` is an (N, 2) numpy array.
-- `img` is a 2D binary numpy array.
-- Foreground / valid region is non-zero.
-- Contour is a closed loop.
-"""
-
 from __future__ import annotations
 
 import math
@@ -35,7 +18,7 @@ def _normalize(v: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     return v / n
 
 
-def compute_tangent(points: np.ndarray, i: int) -> np.ndarray:
+def compute_tangent(points: np.ndarray, i: int) -> np.ndarray:－
     """Estimate tangent from previous and next contour points."""
     n = len(points)
     prev_pt = points[(i - 1) % n].astype(float)
@@ -120,76 +103,76 @@ def _ray_hit_distance(
 # Original pull_points (kept simple and explicit)
 # -----------------------------------------------------------------------------
 
-def pull_points(
-    points: np.ndarray,
-    binary_img: np.ndarray,
-    min_distance: float = 5,
-    increment: float = 5,
-) -> tuple[np.ndarray, list[int]]:
-    """
-    Pull boundary points outward when the opposite side of the shape
-    is found too close along the inward normal direction.
-    """
-    adjusted = points.astype(np.float64).copy()
-    indices_to_adjust: list[int] = []
+# def pull_points(
+#     points: np.ndarray,
+#     binary_img: np.ndarray,
+#     min_distance: float = 5,
+#     increment: float = 5,
+# ) -> tuple[np.ndarray, list[int]]:
+#     """
+#     Pull boundary points outward when the opposite side of the shape
+#     is found too close along the inward normal direction.
+#     """
+#     adjusted = points.astype(np.float64).copy()
+#     indices_to_adjust: list[int] = []
 
-    h, w = binary_img.shape
-    max_steps = int(np.ceil(min_distance))
+#     h, w = binary_img.shape
+#     max_steps = int(np.ceil(min_distance))
 
-    for i in range(len(points)):
-        inward_normal = get_inward_normal(points, i, binary_img)
+#     for i in range(len(points)):
+#         inward_normal = get_inward_normal(points, i, binary_img)
 
-        print(f"[{i}] inward_normal = {inward_normal}")
+#         print(f"[{i}] inward_normal = {inward_normal}")
 
-        if np.linalg.norm(inward_normal) == 0:
-            continue
+#         if np.linalg.norm(inward_normal) == 0:
+#             continue
 
-        outward_normal = -inward_normal
-        p = points[i].astype(np.float64)
+#         outward_normal = -inward_normal
+#         p = points[i].astype(np.float64)
 
-        for d in range(1, max_steps + 1):
-            test_pt = p + inward_normal * d
-            x, y = int(round(test_pt[0])), int(round(test_pt[1]))
+#         for d in range(1, max_steps + 1):
+#             test_pt = p + inward_normal * d
+#             x, y = int(round(test_pt[0])), int(round(test_pt[1]))
 
-            if x < 0 or x >= w or y < 0 or y >= h:
-                break
+#             if x < 0 or x >= w or y < 0 or y >= h:
+#                 break
 
-            if binary_img[y, x] == 0:
-                continue
+#             if binary_img[y, x] == 0:
+#                 continue
 
-            opposite_found = False
+#             opposite_found = False
 
-            for dd in range(1, max_steps + 1):
-                probe_pt = test_pt + inward_normal * dd
-                px, py = int(round(probe_pt[0])), int(round(probe_pt[1]))
+#             for dd in range(1, max_steps + 1):
+#                 probe_pt = test_pt + inward_normal * dd
+#                 px, py = int(round(probe_pt[0])), int(round(probe_pt[1]))
 
-                if px < 0 or px >= w or py < 0 or py >= h:
-                    break
+#                 if px < 0 or px >= w or py < 0 or py >= h:
+#                     break
 
-                if binary_img[py, px] == 0:
-                    distance = d
-                    print(f"[{i}] distance = {distance}")
+#                 if binary_img[py, px] == 0:
+#                     distance = d
+#                     print(f"[{i}] distance = {distance}")
 
-                    if distance < min_distance:
-                        violation = max(min_distance - distance, 0.0)
-                        pull_dist = min(np.sqrt(violation) * 1.2, increment)
-                        # pull_dist = min((min_distance - distance) / 2.0, increment)
-                        adjusted[i] = p + outward_normal * pull_dist
-                        indices_to_adjust.append(i)
+#                     if distance < min_distance:
+#                         violation = max(min_distance - distance, 0.0)
+#                         pull_dist = min(np.sqrt(violation) * 1.2, increment)
+#                         # pull_dist = min((min_distance - distance) / 2.0, increment)
+#                         adjusted[i] = p + outward_normal * pull_dist
+#                         indices_to_adjust.append(i)
 
-                        print(
-                            f"PULL [{i}] distance={distance}, "
-                            f"pull_dist={pull_dist}, "
-                            f"from={p} to={adjusted[i]}"
-                        )
+#                         print(
+#                             f"PULL [{i}] distance={distance}, "
+#                             f"pull_dist={pull_dist}, "
+#                             f"from={p} to={adjusted[i]}"
+#                         )
 
-                    opposite_found = True
-                    break
+#                     opposite_found = True
+#                     break
 
-            if opposite_found:
-                break
+#             if opposite_found:
+#                 break
 
-    return adjusted, indices_to_adjust
+#     return adjusted, indices_to_adjust
 
 def interpolate_modified_spans(original_pts, adjusted_pts, indices, max_gap=2):
     """
@@ -308,56 +291,6 @@ def expand_neighborhood(spans, n, radius=4):
 
     return span_infos
 
-
-# def apply_decayed_pull(original_pts, adjusted_pts, span_infos, radius=4):
-#     """
-#     Apply decayed pull to neighbors around each core span.
-
-#     Core points keep their original pull displacement.
-#     Left/right neighbors inherit weaker displacement from the span edges.
-#     """
-#     original_pts = original_pts.astype(float)
-#     adjusted_pts = adjusted_pts.astype(float)
-
-#     disp = adjusted_pts - original_pts
-#     n = len(original_pts)
-
-#     out_disp = disp.copy()
-#     accum = np.zeros_like(disp)
-#     weight_sum = np.zeros((n, 1), dtype=float)
-
-#     core_set = set()
-#     for info in span_infos:
-#         core_set.update(info["core"])
-
-#     for info in span_infos:
-#         core = info["core"]
-#         mean_vec = np.mean(disp[core], axis=0)
-
-#         for idx, dist in info["left"]:
-#             if idx in core_set:
-#                 continue
-#             w = 1.0 - dist / float(radius + 1)
-#             if w <= 0:
-#                 continue
-#             accum[idx] += mean_vec * w
-#             weight_sum[idx, 0] += w
-
-#         for idx, dist in info["right"]:
-#             if idx in core_set:
-#                 continue
-#             w = 1.0 - dist / float(radius + 1)
-#             if w <= 0:
-#                 continue
-#             accum[idx] += mean_vec * w
-#             weight_sum[idx, 0] += w
-
-#     mask = weight_sum[:, 0] > 0
-#     out_disp[mask] += accum[mask] / weight_sum[mask]
-
-#     return original_pts + out_disp
-
-
 def apply_decayed_pull(original_pts, adjusted_pts, span_infos, radius=4, min_decay_mag=1.0):
     """
     Apply boundary-aware decayed pull.
@@ -463,8 +396,6 @@ def smooth_core_displacement(original_pts, adjusted_pts, spans, passes=1):
         out_disp[span] = span_disp
 
     return original_pts + out_disp
-
-import numpy as np
 
 def smooth_pull_magnitude_field(original_pts, adjusted_pts, spans, passes=2):
     """

@@ -1,83 +1,111 @@
-from cv.rasterize import load_binary_image, extract_contour
+from cv.rasterize import load_binary_image, extract_contours
 from geometry.correction import (
     pull_points,
     interpolate_modified_spans,
     detect_core_spans,
     smooth_pull_magnitude_field,
+    smooth_core_displacement,
+    refit_modified_spans,
     expand_neighborhood,
     apply_decayed_pull,
-    refit_modified_spans,
 )
-from visualization import visualize_adjusted_points
+from visualization import visualize_multi_contours
 import numpy as np
+import matplotlib.pyplot as plt
 
 
-def main():
-    img = load_binary_image("examples/simple_case.png")
-    pts = extract_contour(img)
+def run_one_correction_step(
+    pts,
+    img,
+    min_distance=50,
+    search_depth=50,
+    increment=3,
+    interp_gap=10,
+    core_gap=2,
+    radius=10,
+    mag_smooth_passes=4,
+    disp_smooth_passes=1,
+    refit_anchor_size=20,
+    refit_passes=4,
+    refit_alpha=0.35,
+    verbose=True,
+    verbose_normals=False,
+    reference_normals=None,
+    it=0,
+):
+    """
+    Run one correction step on a single contour.
 
-    current_pts = pts.copy()
+    Returns
+    -------
+    new_pts : (N, 2) ndarray
+    indices : list[int]
+    core_spans : list[list[int]]
+    done : bool   True when no further correction is needed.
+    debug_vectors : list[dict]
+    inward_normals : dict[int, np.ndarray]
+    """
+    adjusted_pts, indices, debug_vectors, inward_normals = pull_points(
+        pts,
+        img,
+        min_distance=min_distance,
+        search_depth=search_depth,
+        increment=increment,
+        verbose=verbose,
+        verbose_normals=verbose_normals,
+        reference_normals=reference_normals,
+    )
 
-    max_iter = 5
-    min_distance = 15
-    increment = 3
-    interp_gap = 10
-    core_gap = 2
-    radius = 30
-
-    for it in range(max_iter):
-        adjusted_pts, indices = pull_points(
-            current_pts,
-            img,
-            min_distance=min_distance,
-            increment=increment,
-        )
-
-        if len(indices) == 0:
+    if not indices:
+        if verbose:
             print(f"[iter {it}] no more pulled points, stop")
-            break
+        return pts.copy(), [], [], True, debug_vectors, inward_normals
 
-        adjusted_pts, indices = interpolate_modified_spans(
-            current_pts,
-            adjusted_pts,
-            indices,
-            max_gap=interp_gap,
-        )
+    adjusted_pts, indices = interpolate_modified_spans(
+        pts,
+        adjusted_pts,
+        indices,
+        max_gap=interp_gap,
+    )
 
-        core_spans = detect_core_spans(indices, len(current_pts), max_gap=core_gap)
+    core_spans = detect_core_spans(indices, len(pts), max_gap=core_gap)
 
-        adjusted_pts = smooth_pull_magnitude_field(
-            current_pts,
-            adjusted_pts,
-            core_spans,
-            passes=4,
-        )
+    if not core_spans:
+        step_disp = np.linalg.norm(adjusted_pts - pts, axis=1)
+        step_max = step_disp.max() if len(step_disp) > 0 else 0.0
+        if verbose:
+            print(
+                f"[iter {it}] no core spans, "
+                f"core_points={len(indices)}, "
+                f"max_step={step_max:.4f}"
+            )
+        return adjusted_pts, indices, [], True, debug_vectors, inward_normals
 
-        span_infos = expand_neighborhood(
-            core_spans,
-            len(current_pts),
-            radius=radius,
-        )
+    adjusted_pts = smooth_pull_magnitude_field(
+        pts, adjusted_pts, core_spans, passes=mag_smooth_passes
+    )
 
-        adjusted_pts = apply_decayed_pull(
-            current_pts,
-            adjusted_pts,
-            span_infos,
-            radius=radius,
-        )
+    span_infos = expand_neighborhood(core_spans, len(pts), radius=radius)
 
-        adjusted_pts = refit_modified_spans(
-            adjusted_pts,
-            core_spans,
-            anchor_size=4,
-            passes=4,
-            alpha=0.35,
-        )
+    adjusted_pts = apply_decayed_pull(pts, adjusted_pts, span_infos, radius=radius)
 
-        step_disp = np.linalg.norm(adjusted_pts - current_pts, axis=1)
-        step_max = step_disp.max()
-        moved_count = int((step_disp > 1e-8).sum())
+    adjusted_pts = smooth_core_displacement(
+        pts, adjusted_pts, core_spans, passes=disp_smooth_passes
+    )
 
+    adjusted_pts = refit_modified_spans(
+        adjusted_pts,
+        core_spans,
+        anchor_size=refit_anchor_size,
+        passes=refit_passes,
+        alpha=refit_alpha,
+    )
+
+    step_disp = np.linalg.norm(adjusted_pts - pts, axis=1)
+    step_max = step_disp.max() if len(step_disp) > 0 else 0.0
+    moved_count = int((step_disp > 1e-8).sum())
+
+    if verbose:
         print(
             f"[iter {it}] "
             f"core_points={len(indices)}, "
@@ -86,25 +114,135 @@ def main():
             f"max_step={step_max:.4f}"
         )
 
-        current_pts = adjusted_pts
+    done = step_max < 1e-3
+    if done and verbose:
+        print(f"[iter {it}] converged, stop")
 
-        if step_max < 1e-3:
-            print(f"[iter {it}] converged, stop")
-            break
+    return adjusted_pts, indices, core_spans, done, debug_vectors, inward_normals
 
-    moved_mask = np.linalg.norm(current_pts - pts, axis=1) > 1e-8
-    moved_indices = np.where(moved_mask)[0].tolist()
 
-    visualize_adjusted_points(
-        pts,
-        current_pts,
-        moved_indices,
-        title="Original vs Iterative Corrected"
+def main(draw_vectors=False):
+    max_iter = 3
+    params = dict(
+        min_distance=10,
+        search_depth=20,
+        increment=2,
+        interp_gap=3,
+        core_gap=2,
+        radius=50,
+        mag_smooth_passes=4,
+        disp_smooth_passes=1,
+        refit_anchor_size=10,
+        refit_passes=4,
+        refit_alpha=0.35,
+        verbose=True,
+        verbose_normals=False,  # set True to log every point's inward vector
     )
 
-    print(f"Loaded {len(pts)} contour points")
-    print(f"Final moved points: {len(moved_indices)}")
+    img = load_binary_image("examples/simple_case_1.png")
+    contours = extract_contours(img, debug=False)
+    print(f"Loaded {len(contours)} contours")
+
+    original_pts_list = [c["points"].astype(float) for c in contours]
+    current_pts_list = [pts.copy() for pts in original_pts_list]
+    all_debug_vectors = [[] for _ in contours]
+    last_indices = [[] for _ in contours]
+    last_core_spans = [[] for _ in contours]
+    done = [False] * len(contours)
+    prev_normals_list = [None] * len(contours)
+    reference_normals_list = [None] * len(contours)
+
+    for it in range(max_iter):
+        any_active = False
+        for k in range(len(contours)):
+            if done[k]:
+                continue
+            new_pts, indices, core_spans, converged, debug_vecs, inward_normals = (
+                run_one_correction_step(
+                    current_pts_list[k], img, it=it,
+                    reference_normals=reference_normals_list[k],
+                    **params,
+                )
+            )
+
+            # Freeze iter-0 normals as the reference for all future iterations.
+            if reference_normals_list[k] is None:
+                reference_normals_list[k] = inward_normals
+
+            # flip detection: compare inward normals to the previous iteration
+            if prev_normals_list[k] is not None:
+                prev = prev_normals_list[k]
+                flips = [
+                    (i, prev[i], inward_normals[i], float(np.dot(inward_normals[i], prev[i])))
+                    for i in inward_normals
+                    if i in prev and np.dot(inward_normals[i], prev[i]) < 0
+                ]
+                if flips:
+                    print(
+                        f"[iter {it}] contour {k}: "
+                        f"{len(flips)} normal flip(s)"
+                    )
+                    for idx, pv, cv, dot in flips:
+                        print(
+                            f"  point {idx}: "
+                            f"prev={np.round(pv, 3)} -> "
+                            f"cur={np.round(cv, 3)}  "
+                            f"dot={dot:.3f}"
+                        )
+
+            prev_normals_list[k] = inward_normals
+            all_debug_vectors[k].extend(debug_vecs)
+            last_indices[k] = indices
+            last_core_spans[k] = core_spans
+            current_pts_list[k] = new_pts
+            if converged:
+                done[k] = True
+            else:
+                any_active = True
+
+        if not any_active:
+            break
+
+    results = []
+    for k, contour_info in enumerate(contours):
+        pts = original_pts_list[k]
+        adjusted_pts = current_pts_list[k]
+        moved_mask = np.linalg.norm(adjusted_pts - pts, axis=1) > 1e-8
+        moved_indices = np.where(moved_mask)[0].tolist()
+
+        print(f"\nContour {k}")
+        print(f"is_hole: {contour_info.get('is_hole', False)}")
+        print(f"depth: {contour_info.get('depth', 0)}")
+        print(f"Contour points: {len(pts)}")
+        print(f"Core pulled points: {len(last_indices[k])}")
+        print(f"Core spans: {len(last_core_spans[k])}")
+        print(f"All moved points: {len(moved_indices)}")
+        print(f"Debug vectors: {len(all_debug_vectors[k])}")
+
+        results.append(
+            {
+                "id": contour_info.get("id", k),
+                "points": pts,
+                "adjusted_points": adjusted_pts,
+                "moved_indices": moved_indices,
+                "core_indices": last_indices[k],
+                "core_spans": last_core_spans[k],
+                "debug_vectors": all_debug_vectors[k],
+                "is_hole": contour_info.get("is_hole", False),
+                "depth": contour_info.get("depth", 0),
+                "parent": contour_info.get("parent", -1),
+                "area": contour_info.get("area", 0.0),
+            }
+        )
+
+    visualize_multi_contours(
+        img,
+        results,
+        title="All contours: iterative corrected",
+        draw_vectors=draw_vectors,
+    )
+    plt.savefig("/tmp/iterative_result.png", dpi=150, bbox_inches="tight")
 
 
 if __name__ == "__main__":
-    main()
+    main(draw_vectors=True)
