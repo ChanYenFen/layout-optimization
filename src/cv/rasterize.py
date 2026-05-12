@@ -2,6 +2,30 @@ import cv2
 import numpy as np
 
 
+def rasterize_contours_to_img(contour_infos, shape):
+    """
+    Render current contour geometries into a binary image.
+
+    Parameters
+    ----------
+    contour_infos : list[dict]
+        Each dict must have 'points' (N, 2), 'depth' (int), 'is_hole' (bool).
+    shape : tuple
+        Image shape (H, W) or (H, W, ...).
+
+    Returns
+    -------
+    img : (H, W) uint8 ndarray
+        Binary image: 255 inside material, 0 in voids.
+    """
+    img = np.zeros(shape[:2], dtype=np.uint8)
+    for info in sorted(contour_infos, key=lambda x: x["depth"]):
+        pts = np.asarray(info["points"], dtype=np.int32).reshape(-1, 1, 2)
+        fill_value = 0 if info["is_hole"] else 255
+        cv2.fillPoly(img, [pts], fill_value)
+    return img
+
+
 # -----------------------------------------------------------------------------
 # Image loading
 # -----------------------------------------------------------------------------

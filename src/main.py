@@ -14,7 +14,7 @@ import numpy as np
 
 
 def run_single_contour_pipeline(pts, img):
-    adjusted_pts, indices, debug_vectors = pull_points(
+    adjusted_pts, indices, debug_vectors, _ = pull_points(
         pts,
         img,
         min_distance=50,

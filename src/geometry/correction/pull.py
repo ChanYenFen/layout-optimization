@@ -37,16 +37,28 @@ def _sample_binary(img: np.ndarray, pt: np.ndarray) -> int:
     return int(img[y, x])
 
 
-def get_inward_normal(points: np.ndarray, i: int, img: np.ndarray, probe: float = 1.5) -> np.ndarray:
+def get_inward_normal(
+    points: np.ndarray,
+    i: int,
+    img: np.ndarray,
+    probe: float = 1.5,
+    verbose: bool = False,
+    reference: np.ndarray = None,
+) -> np.ndarray:
     """
     Pick inward normal by probing both normal directions.
 
     Heuristic:
     - If one side lands on foreground and the other does not, use foreground side.
     - Otherwise return the base normal.
+
+    If `reference` is provided and the chosen direction has dot product < 0
+    with it, the direction is flipped to stay consistent across iterations.
     """
     base_n = compute_normal(points, i)
     if np.allclose(base_n, 0.0):
+        if verbose:
+            print(f"  [normal i={i}] zero tangent, skip")
         return base_n
 
     p = points[i].astype(float)
@@ -57,10 +69,24 @@ def get_inward_normal(points: np.ndarray, i: int, img: np.ndarray, probe: float 
     vb = _sample_binary(img, b)
 
     if va > 0 and vb == 0:
-        return base_n
-    if vb > 0 and va == 0:
-        return -base_n
-    return base_n
+        chosen, side = base_n, "base"
+    elif vb > 0 and va == 0:
+        chosen, side = -base_n, "flipped"
+    else:
+        chosen, side = base_n, "ambiguous"
+
+    if reference is not None and np.linalg.norm(reference) > 1e-8:
+        if np.dot(chosen, reference) < 0:
+            chosen = -chosen
+            side += "+ref-corrected"
+
+    if verbose:
+        print(
+            f"  [normal i={i}] inward={np.round(chosen, 3)}"
+            f"  side={side}  va={va}  vb={vb}"
+        )
+
+    return chosen
 
 
 # -----------------------------------------------------------------------------
@@ -74,7 +100,9 @@ def pull_points(
     search_depth: float = 50,
     increment: float = 5,
     verbose: bool = False,
-) -> tuple[np.ndarray, list[int], list[dict]]:
+    verbose_normals: bool = False,
+    reference_normals: dict = None,
+) -> tuple[np.ndarray, list[int], list[dict], dict]:
     """
     Pull boundary points outward when the opposite side of the shape
     is found too close along the inward normal direction.
@@ -106,17 +134,22 @@ def pull_points(
         - outward
         - disp
         - pull_dist
+    inward_normals : dict[int, np.ndarray]
+        Inward normal vector recorded for every point (index → vector).
     """
     adjusted = points.astype(np.float64).copy()
     indices_to_adjust: list[int] = []
     debug_vectors: list[dict] = []
+    inward_normals: dict = {}
 
     h, w = binary_img.shape
     max_steps = int(np.ceil(search_depth))#replace max_steps = int(np.ceil(min_distance))
 
 
     for i in range(len(points)):
-        inward_normal = get_inward_normal(points, i, binary_img)
+        ref = reference_normals[i] if reference_normals is not None and i in reference_normals else None
+        inward_normal = get_inward_normal(points, i, binary_img, verbose=verbose_normals, reference=ref)
+        inward_normals[i] = inward_normal.copy()
 
         if verbose:
             print(f"[{i}] inward_normal = {inward_normal}")
@@ -187,4 +220,4 @@ def pull_points(
             if opposite_found:
                 break
 
-    return adjusted, indices_to_adjust, debug_vectors
+    return adjusted, indices_to_adjust, debug_vectors, inward_normals
