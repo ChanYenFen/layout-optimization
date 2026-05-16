@@ -3,3 +3,4 @@ from .span import interpolate_modified_spans, detect_core_spans, expand_neighbor
 from .smooth import smooth_pull_magnitude_field, smooth_core_displacement
 from .decay import apply_decayed_pull
 from .refit import refit_modified_spans
+from .intersect import resolve_self_intersections, fillet_sharp_corners

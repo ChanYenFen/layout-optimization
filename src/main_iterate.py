@@ -8,6 +8,8 @@ from geometry.correction import (
     refit_modified_spans,
     expand_neighborhood,
     apply_decayed_pull,
+    resolve_self_intersections,
+    fillet_sharp_corners,
 )
 from visualization import visualize_multi_contours
 import numpy as np
@@ -122,9 +124,9 @@ def run_one_correction_step(
 
 
 def main(draw_vectors=False):
-    max_iter = 3
+    max_iter = 4
     params = dict(
-        min_distance=10,
+        min_distance=30,
         search_depth=20,
         increment=2,
         interp_gap=3,
@@ -139,7 +141,7 @@ def main(draw_vectors=False):
         verbose_normals=False,  # set True to log every point's inward vector
     )
 
-    img = load_binary_image("examples/simple_case_1.png")
+    img = load_binary_image("examples/simple_case_3.png")
     contours = extract_contours(img, debug=False)
     print(f"Loaded {len(contours)} contours")
 
@@ -203,20 +205,36 @@ def main(draw_vectors=False):
         if not any_active:
             break
 
+    # Post-process: remove self-intersecting loops, then fillet only where
+    # intersections were actually resolved (don't touch original geometry).
+    for k in range(len(contours)):
+        before_n = len(current_pts_list[k])
+        current_pts_list[k] = resolve_self_intersections(current_pts_list[k])
+        removed = before_n - len(current_pts_list[k])
+        if removed > 0:
+            print(f"[post] contour {k}: resolved {removed} intersection point(s)")
+            before_fillet = len(current_pts_list[k])
+            current_pts_list[k] = fillet_sharp_corners(
+                current_pts_list[k], min_turn_deg=90.0, radius=5.0, n_arc=4
+            )
+            added = len(current_pts_list[k]) - before_fillet
+            if added > 0:
+                print(f"[post] contour {k}: filleted {added} point(s) added for sharp corners")
+
     results = []
     for k, contour_info in enumerate(contours):
         pts = original_pts_list[k]
         adjusted_pts = current_pts_list[k]
-        moved_mask = np.linalg.norm(adjusted_pts - pts, axis=1) > 1e-8
-        moved_indices = np.where(moved_mask)[0].tolist()
+        n_compare = min(len(pts), len(adjusted_pts))
+        moved_count = int((np.linalg.norm(adjusted_pts[:n_compare] - pts[:n_compare], axis=1) > 1e-8).sum())
 
         print(f"\nContour {k}")
         print(f"is_hole: {contour_info.get('is_hole', False)}")
         print(f"depth: {contour_info.get('depth', 0)}")
-        print(f"Contour points: {len(pts)}")
+        print(f"Contour points (original): {len(pts)}, (adjusted): {len(adjusted_pts)}")
         print(f"Core pulled points: {len(last_indices[k])}")
         print(f"Core spans: {len(last_core_spans[k])}")
-        print(f"All moved points: {len(moved_indices)}")
+        print(f"All moved points: {moved_count}")
         print(f"Debug vectors: {len(all_debug_vectors[k])}")
 
         results.append(
@@ -224,7 +242,6 @@ def main(draw_vectors=False):
                 "id": contour_info.get("id", k),
                 "points": pts,
                 "adjusted_points": adjusted_pts,
-                "moved_indices": moved_indices,
                 "core_indices": last_indices[k],
                 "core_spans": last_core_spans[k],
                 "debug_vectors": all_debug_vectors[k],
