@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .vscode/
 .vscode/settings.json
+result/*.png
+**/.DS_Store

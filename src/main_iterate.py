@@ -141,7 +141,8 @@ def main(draw_vectors=False):
         verbose_normals=False,  # set True to log every point's inward vector
     )
 
-    img = load_binary_image("examples/simple_case_3.png")
+    image_path = "examples/simple_case_3.png"
+    img = load_binary_image(image_path)
     contours = extract_contours(img, debug=False)
     print(f"Loaded {len(contours)} contours")
 
@@ -258,7 +259,12 @@ def main(draw_vectors=False):
         title="All contours: iterative corrected",
         draw_vectors=draw_vectors,
     )
-    plt.savefig("/tmp/iterative_result.png", dpi=150, bbox_inches="tight")
+    import os
+    stem = os.path.splitext(os.path.basename(image_path))[0]
+    result_dir = os.path.join(os.path.dirname(__file__), "..", "result")
+    out_path = os.path.join(result_dir, f"{stem}_result.png")
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    print(f"Saved to {out_path}")
 
 
 if __name__ == "__main__":
